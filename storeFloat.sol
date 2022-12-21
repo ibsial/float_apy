@@ -5,77 +5,65 @@ pragma solidity ^0.8.13;
 
 contract Float {
 
-    mapping(address => PositionData) position;
-
-    address[] public tokens;
-    bytes32[] public values; //we can store 16 values
+    mapping(address => PositionData) public position;
 
     struct PositionData {
-        uint64 slot; // array number
-        uint64 fraction; // first half-byte in the slot
+        uint32 slot; // array number
+        uint32 fraction; // first byte in the slot
     }
 
-    function addNumber(bytes32 _preparedNumber) public {
-        
+    mapping(uint128 => bytes32) values;
+    bool initDone;
 
-            values.push(_preparedNumber);
-        
+
+    function addNumber(uint32 _slot, bytes32 _preparedNumber) public {
+        values[_slot] = _preparedNumber;
+    }
+
+    function addNumbers(uint32[] memory _slots, bytes32[] memory _preparedNumbers) public {
+        require(_slots.length == _preparedNumbers.length, "arrays length mismatch");
+        for (uint i = 0; i < _slots.length; i++) {
+            addNumber(_slots[i], _preparedNumbers[i]);
+        }
+    }
+    function addToken(address _token, PositionData memory _position) public {
+            position[_token] = _position;
     }
 
     function addTokens(address[] memory _token, PositionData[] memory _position) public {
         for (uint i = 0; i < _token.length; i++) {
-            position[_token[i]] = _position[i];
+            addToken(_token[i], _position[i]);
         }
     }
 
-    // get number from bytes32
-    // having a hex number like
-    // 0x2710 (10 000 in decimal)
-    // we first access 27 
-    // then shift by 2 positions (8 bits or 2 half-bytes)
-    // concat with 10
-    bytes32 public vvalue;
-    function _getValue(uint _slot, uint _fraction) public returns(bytes32) {
-        bytes32 value = values[_fraction][_slot+1];
-        value = (value >> 8) | values[_fraction][_slot];
-        vvalue = value;
+
+    bytes32 public value;
+    function _getValue(uint128 _slot, uint _firstBytePos) public returns(bytes32) {
+        // maybe input bit position to avoid multiplication to 8 ?
+        value = (values[_slot] << (_firstBytePos * 8)) >> 240;
         return value;
     }
 
     // decode hex number to uint256
     // consider mantissa taking first 2 bits
+    uint public num;
     uint256 public result;
-    uint256 public num;
-    function _decodeValue(bytes32 _value) public {
-        num = uint256(_value >> 240);
-        uint256 mantissa = num >> 14;
-        uint256 body = (num << 242) >> 242;
-
-        result = body * (10 ** mantissa);
-
+    function _decodeValue(bytes32 _value) public returns (uint256) {
+        num = uint256(_value);
+        uint256 mantissa = uint256(_value) >> 14;
+        uint256 body = (uint256(_value) << 242) >> 242;
+        result = body * (10 ** mantissa); // this is neede for remix test only!
+        return body * (10 ** mantissa);
     }
 
     // look at an example
-    // having bits 10_10011101110101 (3 and 10101 in dec)
-    // we want to mean a float number 10.101
+    // having bits 10_10011101110101 (2 and 10101 in dec)
+    // we want to mean a float number 101.01
     // these bits are converted to a hex number 
     // A775
-    function getValuesForTokens(address[] memory _token) public {
-
-        for (uint i = 0; i < _token.length; i++) {
-
-        }
+    function getValueForToken(address _token) public  returns (uint256) {
+        PositionData memory pos = position[_token];
+        value = _getValue(pos.slot, pos.fraction);
+        return  _decodeValue(value);
     }
-
-    // bytes32 public value = 0x0000000000000000000000000000000000000000000000000000000000000001;
-
-    // function shiftBytes() public {
-    //     value = value << 4;
-    // }
-
-    // bytes1 public posValue;
-
-    // function revealPosValue(uint8 pos) public {
-    //     posValue = value[pos];
-    // }
 }
