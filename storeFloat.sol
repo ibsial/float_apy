@@ -39,7 +39,6 @@ contract Float {
 
     bytes32 public value;
     function _getValue(uint128 _slot, uint _firstBytePos) internal returns(bytes32) {
-        // maybe input bit position to avoid multiplication to 8 ?
         value = (values[_slot] << (_firstBytePos * 8)) >> 240;
         return value;
     }
